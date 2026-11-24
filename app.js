@@ -26,11 +26,11 @@ const FRESH=new Set([0,1,2]);
 const PAGE=20;
 
 const DEF={tab:'plan',step:0,store:'Lidl',tags:['Warm','Gesund'],devices:['Herd','Backofen','Airfryer'],pantry:['Olivenöl','Sojasauce','Reis','Spaghetti','Zwiebel','Knoblauch','Gemüsebrühe','Mehl','Tomatenmark','Senf','Honig'],
-portions:2,nights:4,maxT:45,dis:[],picked:[],checked:[],fav:[],bon:'',seed:1,hint:true};
+portions:2,nights:4,maxT:45,dis:[],picked:[],checked:[],fav:[],bon:'',seed:1,hint:true,hist:[],planStart:null};
 const SETS=['tags','devices','pantry','dis','picked','checked','fav'];
 let S;
 try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem('mise')||'{}'))}catch(e){S=Object.assign({},DEF)}
-delete S._sharedIn;
+delete S._sharedIn;if(!Array.isArray(S.hist))S.hist=[];
 SETS.forEach(k=>S[k]=new Set((S[k]||[]).filter(x=>k!=='picked'&&k!=='fav'||BYID[x])));
 let ui={q:'',favOnly:false,shown:PAGE};
 const save=()=>{try{const o={};for(const k in S)o[k]=S[k] instanceof Set?[...S[k]]:S[k];localStorage.setItem('mise',JSON.stringify(o))}catch(e){}};
@@ -39,8 +39,7 @@ let sharedIn=false;
 /* Geteilter Plan: #plan-<Laden>-<Portionen>-<id>-<id>… */
 (function readShared(){const h=location.hash.slice(1);if(!h.startsWith('plan-'))return;
  const p=h.split('-');const si=+p[1],po=+p[2],ids=p.slice(3).filter(x=>BYID[x]);
- if(!ids.length)return;if(STORES[si])S.store=STORES[si][0];if(po>=1&&po<=8)S.portions=po;
- S.picked=new Set(ids);S.nights=Math.max(S.nights,ids.length);S.checked=new Set();S.tab='week';sharedIn=true;
+ if(!ids.length)return;sharedIn={si,po,ids};
  try{history.replaceState(null,'',location.pathname+location.search)}catch(e){location.hash=''}})();
 
 const eurF=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'});
@@ -56,6 +55,21 @@ const disIng=()=>new Set([...S.dis].flatMap(d=>DIS[d]||[]));
 const dishCost=r=>r.ing.reduce((s,[n,q])=>s+qty(q*fac(),I[n].u)*I[n].p,0)*sf();
 const shared=r=>{const mine=new Set(r.ing.map(i=>i[0]).filter(n=>FRESH.has(I[n].a)));const o=new Set();
  S.picked.forEach(id=>{if(id===r.id)return;BYID[id].ing.forEach(([n])=>{if(mine.has(n))o.add(n)})});return o.size};
+const DAY=864e5;
+const todayISO=()=>new Date().toISOString().slice(0,10);
+const kw=iso=>{const d=new Date(iso+'T12:00:00');const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const n=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-n);const y=new Date(Date.UTC(t.getUTCFullYear(),0,1));return Math.ceil(((t-y)/DAY+1)/7)};
+const fmtD=iso=>new Date(iso+'T12:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
+function pruneHist(){const lim=Date.now()-28*DAY;S.hist=S.hist.filter(h=>h&&h.ids&&new Date(h.d+'T12:00:00').getTime()>=lim).sort((a,b)=>b.d.localeCompare(a.d)||b.t-a.t).slice(0,10)}
+function archive(){if(!S.picked.size)return;const ids=[...S.picked].filter(id=>BYID[id]);if(!ids.length)return;
+ const base=shopping().base;const bon=parseFloat(String(S.bon).replace(',','.'))||0;
+ S.hist.push({d:S.planStart||todayISO(),t:Date.now(),s:S.store,po:S.portions,ids,cost:+(base*sf()).toFixed(2),bon});pruneHist()}
+function resetPlan(){archive();S.picked.clear();S.checked.clear();S.bon='';S.planStart=null;S.step=0;S.tab='plan';ui.shown=PAGE}
+function importPlan(si,po,ids){ids=ids.filter(id=>BYID[id]);if(!ids.length)return false;
+ const same=ids.length===S.picked.size&&ids.every(id=>S.picked.has(id));
+ if(!same){archive();if(STORES[si])S.store=STORES[si][0];if(po>=1&&po<=8)S.portions=po;S.picked=new Set(ids);S.nights=Math.max(S.nights,ids.length);S.checked=new Set();S.bon='';S.planStart=todayISO()}
+ S.tab='week';return true}
+const parsePlan=txt=>{const m=String(txt).match(/plan-(\d+)-(\d+)-([a-z]+(?:-[a-z]+)*)/);return m?{si:+m[1],po:+m[2],ids:m[3].split('-')}:null};
+function applyPlan(store,po,ids){archive();S.store=store;S.portions=po;S.picked=new Set(ids);S.nights=Math.max(S.nights,ids.length);S.checked=new Set();S.bon='';S.planStart=todayISO();S.tab='week'}
 const rnd=(id)=>{let h=S.seed*2654435761;for(const ch of id)h=Math.imul(h^ch.charCodeAt(0),16777619);return((h>>>0)%1000)/1000};
 
 function hero(c){const id='h'+Math.random().toString(36).slice(2,8);
@@ -147,20 +161,29 @@ return `<h1>Einkaufsliste</h1><p class="sub">${items.length} Artikel · noch ${l
 ${groups}
 <p class="note">Salz, Pfeffer und Gewürze setzen wir voraus.</p>
 <div class="nav" style="margin:14px 0"><button class="btn sec" data-a="sharelist">Liste teilen</button><button class="btn sec" data-a="uncheck">Haken zurücksetzen</button></div>
+<button class="btn sec danger" data-a="reset" style="width:100%;margin-bottom:14px">Kompletten Einkaufsplan zurücksetzen</button>
 <section class="card glass"><h2>Nach dem Einkauf</h2><p class="h">Summe vom Kassenbon eintragen, um zu sehen, wie gut die Schätzung lag.</p>
 <input class="search" id="bon" inputmode="decimal" placeholder="z. B. 34,50" value="${String(S.bon).replace(/"/g,'')}"><p class="note" id="bonOut" style="margin:6px 2px 0">${bonText(tot)}</p></section>`}
 
 function bonText(tot){const v=parseFloat(String(S.bon).replace(',','.'));if(!v)return '';const d=(tot-v)/v*100;
 return Math.abs(d)<3?'Die Schätzung lag fast genau richtig.':`Die Schätzung lag ${Math.abs(d).toFixed(0)} % ${d>0?'zu hoch':'zu niedrig'}.`}
 
-function viewWeek(){if(!S.picked.size)return empty('Eure Woche','Gerichte auswählen');
+function viewHist(){pruneHist();if(!S.hist.length)return `<h2 class="sec">Letzte Wochen</h2><section class="card glass"><p class="h" style="margin:0">Noch nichts archiviert. Wenn ihr einen Plan zurücksetzt, landet er hier und bleibt 4 Wochen sichtbar.</p></section>`;
+return `<h2 class="sec">Letzte Wochen</h2>`+S.hist.map((h,i)=>{const ds=h.ids.map(id=>BYID[id]).filter(Boolean);
+return `<details class="card glass hist"><summary><span><b>KW ${kw(h.d)}</b> · ab ${fmtD(h.d)}</span><span class="meta">${ds.length} Gerichte · ${h.s} · ≈ ${eur(h.cost)}${h.bon?` · Bon ${eur(h.bon)}`:''}</span></summary>
+${ds.map(r=>`<button class="day" data-a="open" data-v="${r.id}"><span class="d"></span><span class="thumb">${hero(r.c)}</span><span><b style="display:block;line-height:1.25">${r.n}</b><span class="meta">${r.t} Min · ${h.po} Portionen</span></span><span class="meta">›</span></button>`).join('')}
+<button class="btn sec" data-a="reuse" data-v="${i}" style="width:100%;margin-top:10px">Diese Woche nochmal planen</button></details>`}).join('')}
+
+function importCard(){return `<section class="card glass"><h2>Geteilten Plan einfügen</h2><p class="h">Link aus WhatsApp oder iMessage kopieren und hier einfügen. So landet der Plan in dieser App und in deiner eigenen Historie.</p>
+<div class="tools" style="margin:0"><input class="search" id="imp" type="url" placeholder="Link einfügen" autocomplete="off"><button class="chip" data-a="imp">Übernehmen</button></div></section>`}
+function viewWeek(){if(!S.picked.size)return empty('Eure Woche','Gerichte auswählen')+importCard()+viewHist();
 const ds=[...S.picked].map(id=>BYID[id]);const{base}=shopping();const tot=base*sf();const ports=ds.length*S.portions;
 const avg=k=>Math.round(ds.reduce((s,r)=>s+r[k],0)/ds.length);
 return `<h1>Eure Woche</h1><p class="sub">${ds.length} Gerichte · je ${S.portions} Portionen · ${S.store}</p>
 <section class="card glass v"><div class="kpis" style="margin-top:0"><div class="kpi"><small>Einkauf</small><b>≈ ${eur(tot)}</b></div><div class="kpi"><small>Pro Portion</small><b>${eur(tot/ports)}</b></div><div class="kpi"><small>Ø Protein</small><b>${avg('p')} g</b></div><div class="kpi"><small>Ø Kochzeit</small><b>${avg('t')} Min</b></div></div></section>
 <section class="card glass">${ds.map((r,i)=>`<button class="day" data-a="open" data-v="${r.id}"><span class="d">${DAYS[i%7]}</span><span class="thumb">${hero(r.c)}</span><span><b style="display:block;line-height:1.25">${r.n}</b><span class="meta">${r.t} Min · ${r.k} kcal</span></span><span class="meta">›</span></button>`).join('')}</section>
-<div class="nav"><button class="btn pri" data-a="shareplan">Plan teilen</button><button class="btn sec" data-a="reset">Neue Woche</button></div>
-<p class="note">„Plan teilen“ schickt einen Link: Wer ihn öffnet, hat dieselben Gerichte und dieselbe Einkaufsliste.</p>`}
+<div class="nav"><button class="btn pri" data-a="shareplan">Plan teilen</button><button class="btn sec danger" data-a="reset">Plan zurücksetzen</button></div>
+<p class="note">„Plan teilen“ schickt einen Link. Die andere Person fügt ihn in ihrer App unter Woche › „Geteilten Plan einfügen“ ein.</p>${importCard()}${viewHist()}`}
 
 function openSheet(id){const r=BYID[id];const sh=document.getElementById('sheet');
 sh.innerHTML=`<div class="panel glass" role="dialog" aria-modal="true" aria-label="${r.n}"><div class="hero">${hero(r.c)}<button class="sheetfav glass" data-a="fav" data-v="${r.id}" aria-pressed="${S.fav.has(r.id)}" aria-label="Favorit">${HEART}</button><button class="x glass" data-a="close" aria-label="Schließen">×</button></div>
@@ -174,7 +197,11 @@ ${r.st.map(([t,x],i)=>`<div class="stp">${ill(t,r.c)}<p><b>${i+1}</b>${x}</p></d
 <button class="btn ${S.picked.has(r.id)?'sec':'pri'}" data-a="pick" data-v="${r.id}" style="width:100%;margin-top:4px">${S.picked.has(r.id)?'Aus der Woche entfernen':'Zur Woche hinzufügen'}</button>
 <p class="note">Nährwerte pro Portion, geschätzt.</p></div></div>`;
 sh.hidden=false;sh.dataset.id=id;document.body.style.overflow='hidden'}
-function closeSheet(){const sh=document.getElementById('sheet');sh.hidden=true;sh.innerHTML='';delete sh.dataset.id;document.body.style.overflow=''}
+let dlgAction=null;
+function confirmDlg(title,text,ok,fn){dlgAction=fn;const sh=document.getElementById('sheet');
+sh.innerHTML=`<div class="dlg glass" role="alertdialog" aria-modal="true" aria-label="${title}"><h2>${title}</h2><p>${text}</p><div class="nav"><button class="btn sec" data-a="close">Abbrechen</button><button class="btn pri" data-a="dlgok">${ok}</button></div></div>`;
+sh.classList.add('center');sh.hidden=false;document.body.style.overflow='hidden'}
+function closeSheet(){document.getElementById('sheet').classList.remove('center');const sh=document.getElementById('sheet');sh.hidden=true;sh.innerHTML='';delete sh.dataset.id;document.body.style.overflow=''}
 
 const ICO={plan:'<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/>',dishes:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>',list:'<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>',week:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>'};
 function render(){const v={plan:viewPlan,dishes:viewDishes,list:viewList,week:viewWeek}[S.tab]();
@@ -203,7 +230,7 @@ else if(a==='pan'){tog(S.pantry,v);b.setAttribute('aria-pressed',S.pantry.has(v)
 else if(a==='por'){S.portions=Math.min(8,Math.max(1,S.portions+ +v))}
 else if(a==='nig'){S.nights=Math.min(7,Math.max(1,S.nights+ +v))}
 else if(a==='time'){S.maxT=+v}
-else if(a==='pick'){if(S.picked.has(v))S.picked.delete(v);else{if(S.picked.size>=S.nights){toast('Schon '+S.nights+' Gerichte gewählt. Unter Planen › Rahmen mehr einstellen.');return}S.picked.add(v)}}
+else if(a==='pick'){if(S.picked.has(v))S.picked.delete(v);else{if(S.picked.size>=S.nights){toast('Schon '+S.nights+' Gerichte gewählt. Unter Planen › Rahmen mehr einstellen.');return}if(!S.picked.size)S.planStart=todayISO();S.picked.add(v)}}
 else if(a==='fav'){tog(S.fav,v);toast(S.fav.has(v)?'Zu Favoriten hinzugefügt':'Aus Favoriten entfernt')}
 else if(a==='favonly'){ui.favOnly=!ui.favOnly;ui.shown=PAGE}
 else if(a==='shuffle'){S.seed=(S.seed%9973)+1+Math.floor(Math.random()*50);ui.shown=PAGE;toast('Neu gemischt')}
@@ -213,7 +240,16 @@ else if(a==='close'){closeSheet();return}
 else if(a==='chk')tog(S.checked,v);
 else if(a==='uncheck'){S.checked.clear()}
 else if(a==='nohint'){S.hint=false}
-else if(a==='reset'){S.picked.clear();S.checked.clear();S.bon='';S.step=0;S.tab='plan';scrollTo(0,0)}
+else if(a==='reset'){confirmDlg('Plan zurücksetzen?','Gerichte, Einkaufsliste, Haken und Bon-Betrag werden geleert. Die Woche landet im Archiv. Laden, Vorrat, Geräte und Favoriten bleiben erhalten.','Zurücksetzen',()=>{resetPlan();scrollTo(0,0);render();toast('Plan zurückgesetzt und archiviert')});return}
+else if(a==='imp'){const el=document.getElementById('imp');const p=parsePlan(el&&el.value);
+ if(!p){toast('Kein gültiger Plan-Link');return}
+ const go=()=>{importPlan(p.si,p.po,p.ids);scrollTo(0,0);render();toast('Geteilter Plan übernommen')};
+ const same=p.ids.length===S.picked.size&&p.ids.every(id=>S.picked.has(id));
+ if(S.picked.size&&!same)confirmDlg('Plan übernehmen?','Dein aktueller Plan wird vorher in deiner Historie archiviert.','Übernehmen',go);else go();return}
+else if(a==='dlgok'){const f=dlgAction;closeSheet();if(f)f();return}
+else if(a==='reuse'){const h=S.hist[+v];if(!h)return;const ids=h.ids.filter(id=>BYID[id]);
+ const go=()=>{applyPlan(h.s,h.po,ids);scrollTo(0,0);render();toast('Woche übernommen')};
+ if(S.picked.size)confirmDlg('Diese Woche übernehmen?','Euer aktueller Plan wird vorher archiviert und durch die Gerichte aus KW '+kw(h.d)+' ersetzt.','Übernehmen',go);else go();return}
 else if(a==='sharelist'){const{items}=shopping();share('Einkaufsliste','Einkauf bei '+S.store+'\n'+items.filter(i=>!S.checked.has(i.n)).map(i=>'• '+i.n+' – '+fmtQ(i.q,i.u)).join('\n'));return}
 else if(a==='shareplan'){const si=STORES.findIndex(s=>s[0]===S.store);const url=location.origin+location.pathname+'#plan-'+si+'-'+S.portions+'-'+[...S.picked].join('-');
  share('Unsere Woche','Unser Wochenplan: '+[...S.picked].map(id=>BYID[id].n).join(', '),url);return}
@@ -223,6 +259,8 @@ document.addEventListener('input',e=>{const t=e.target;
 if(t.id==='pq')document.getElementById('pc').innerHTML=panChips(t.value);
 if(t.id==='dq'){ui.q=t.value;ui.shown=PAGE;document.getElementById('dl').innerHTML=dishList(ranked().list)}
 if(t.id==='bon'){S.bon=t.value;save();document.getElementById('bonOut').textContent=bonText(shopping().base*sf())}});
+pruneHist();
+if(sharedIn)importPlan(sharedIn.si,sharedIn.po,sharedIn.ids);
 render();
 if(sharedIn)toast('Geteilter Plan übernommen');
 if('serviceWorker' in navigator&&location.protocol==='https:'){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}

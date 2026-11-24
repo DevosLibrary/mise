@@ -1,6 +1,6 @@
 // Offline-Cache: App lädt sofort und funktioniert auch ohne Netz (z. B. im Supermarkt-Keller).
 // Bei jeder neuen Version VERSION hochzählen, dann holen sich die iPhones die neuen Dateien.
-const VERSION = 'mise-v1';
+const VERSION = 'mise-v2';
 const FILES = ['./', 'index.html', 'app.js', 'data.js', 'manifest.webmanifest',
   'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
