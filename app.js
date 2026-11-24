@@ -88,6 +88,7 @@ const todayISO=()=>new Date().toISOString().slice(0,10);
 const kw=iso=>{const d=new Date(iso+'T12:00:00');const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const n=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-n);const y=new Date(Date.UTC(t.getUTCFullYear(),0,1));return Math.ceil(((t-y)/DAY+1)/7)};
 const fmtD=iso=>new Date(iso+'T12:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
 const rnd=id=>{let h=S.seed*2654435761;for(const ch of id)h=Math.imul(h^ch.charCodeAt(0),16777619);return((h>>>0)%1000)/1000};
+const gerichte=n=>n+(n===1?' Gericht':' Gerichte');
 const uid=()=>Array.from({length:7},()=>'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random()*26)]).join('');
 
 /* Historie, Reset, Import */
@@ -180,7 +181,7 @@ return (shown.map(dishCard).join('')||`<div class="card glass empty"><p>${ui.fav
 function shopping(){const m=new Map();let pantrySave=0;
 S.picked.forEach(id=>{const r=BYID[id];if(!r)return;r.ing.forEach(([n,q])=>{const x=m.get(n)||{q:0,for:[]};x.q+=q*fac();x.for.push(r.n.split(/[ -]/)[0]);m.set(n,x)})});
 const items=[];m.forEach((x,n)=>{const d=info(n);if(S.pantry.has(n)){pantrySave+=qty(x.q,d.u)*d.p;return}const b=buy(n,x.q);
- items.push({key:'i:'+n,n,q:x.q,u:d.u,a:d.a,cost:b.cost*sf(),label:b.label,need:(b.pk>1||(b.pk&&!CNT.has(d.u)))?fmtQ(x.q,d.u):'',left:b.left,pk:b.pk,for:[...new Set(x.for)]})});
+ items.push({key:'i:'+n,n,q:x.q,u:d.u,a:d.a,cost:b.cost*sf(),label:b.label,need:(b.pk&&b.left>.01&&(b.pk>1||!CNT.has(d.u)))?fmtQ(x.q,d.u):'',left:b.left,pk:b.pk,for:[...new Set(x.for)]})});
 S.extra.forEach(e=>items.push({key:'x:'+e.k,n:e.n,a:e.a,extra:true,k:e.k,cost:0}));
 items.sort((a,b)=>a.a-b.a||((a.extra?1:0)-(b.extra?1:0))||a.n.localeCompare(b.n,'de'));
 const total=items.reduce((s,i)=>s+i.cost,0);return{items,total,pantrySave:pantrySave*sf()}}
@@ -211,7 +212,7 @@ function leftovers(){return shopping().items.filter(i=>!i.extra&&i.pk&&i.left>0&
 /* Woche */
 function viewHist(){pruneHist();if(!S.hist.length)return `<h2 class="sec">Letzte Wochen</h2><section class="card glass"><p class="h" style="margin:0">Noch nichts archiviert. Wenn ihr einen Plan zurücksetzt, landet er hier und bleibt 4 Wochen sichtbar. Die Historie liegt nur auf diesem Gerät.</p></section>`;
 return `<h2 class="sec">Letzte Wochen</h2>`+S.hist.map((h,i)=>{const ds=h.ids.map(id=>BYID[id]).filter(Boolean);
-return `<details class="card glass hist"><summary><span><b>KW ${kw(h.d)}</b> · ab ${fmtD(h.d)}</span><span class="meta">${ds.length} Gerichte · ${esc(h.s)} · ≈ ${eur(h.cost)}${h.bon?` · Bon ${eur(h.bon)}`:''}</span></summary>
+return `<details class="card glass hist"><summary><span><b>KW ${kw(h.d)}</b> · ab ${fmtD(h.d)}</span><span class="meta">${gerichte(ds.length)} · ${esc(h.s)} · ≈ ${eur(h.cost)}${h.bon?` · Bon ${eur(h.bon)}`:''}</span></summary>
 ${ds.map(r=>`<button class="day" data-a="open" data-v="${r.id}"><span class="d"></span><span class="thumb">${hero(r.c)}</span><span><b style="display:block;line-height:1.25">${esc(r.n)}</b><span class="meta">${r.t} Min · ${h.po} Portionen</span></span><span class="meta">›</span></button>`).join('')}
 <button class="btn sec" data-a="reuse" data-v="${i}" style="width:100%;margin-top:10px">Diese Woche nochmal planen</button></details>`}).join('')}
 function importCard(){return `<section class="card glass"><h2>Geteilten Plan einfügen</h2><p class="h">Link aus WhatsApp oder iMessage kopieren und hier einfügen. So landet der Plan in dieser App und in deiner eigenen Historie.</p>
@@ -219,7 +220,7 @@ function importCard(){return `<section class="card glass"><h2>Geteilten Plan ein
 function nutrCard(ds){if(!ds.length)return'';const sum=k=>ds.reduce((s,r)=>s+(r[k]||0),0);const n=ds.length;const g=+S.goalP||0;const hit=g?ds.filter(r=>r.p>=g).length:0;
 const mx=Math.max(sum('p'),sum('ch'),sum('f'),1);
 const row=(l,v,u,max)=>`<div class="cmp"><span>${l}</span><span class="tr"><i style="width:${Math.min(100,v/max*100).toFixed(1)}%;background:var(--acc);opacity:1"></i></span><span>${Math.round(v)} ${u}</span></div>`;
-return `<section class="card glass"><h2>Nährwerte der Woche</h2><p class="h">Pro Person für die ${n} geplanten Abendessen. Im Schnitt ${Math.round(sum('k')/n)} kcal und ${Math.round(sum('p')/n)} g Protein pro Abendessen.</p>
+return `<section class="card glass"><h2>Nährwerte der Woche</h2><p class="h">Pro Person für ${n===1?'das geplante Abendessen':'die '+n+' geplanten Abendessen'}. Im Schnitt ${Math.round(sum('k')/n)} kcal und ${Math.round(sum('p')/n)} g Protein pro Abendessen.</p>
 ${row('Energie',sum('k'),'kcal',Math.max(1,sum('k')))}${row('Protein',sum('p'),'g',mx)}${row('Kohlenh.',sum('ch'),'g',mx)}${row('Fett',sum('f'),'g',mx)}
 <div class="row" style="margin-top:8px"><span>Protein-Ziel pro Abendessen</span><div class="step"><button data-a="goal" data-v="-5" aria-label="weniger">−</button><output>${g?g+' g':'aus'}</output><button data-a="goal" data-v="5" aria-label="mehr">+</button></div></div>
 ${g?`<p class="note" style="margin:0">${hit} von ${n} Abendessen erreichen ${g} g Protein.</p>`:''}</section>`}
@@ -229,7 +230,7 @@ const avg=k=>Math.round(ds.reduce((s,r)=>s+r[k],0)/ds.length);const byDay={};Obj
 const rows=DAYS.map((d,i)=>{const r=byDay[i];
  if(r)return `<div class="day"><span class="d">${d}</span><button class="thumb" data-a="open" data-v="${r.id}" aria-label="Rezept öffnen">${hero(r.c)}</button><button class="dname" data-a="open" data-v="${r.id}"><b>${esc(r.n)}</b><span class="meta">${r.t} Min${r.k?` · ${r.k} kcal`:''}</span></button><button class="mini" data-a="moveday" data-v="${r.id}">Tag</button></div>`;
  return `<div class="day"><span class="d">${d}</span><span class="thumb empty-th"></span><span class="dname"><b class="meta">${out.has(i)?'Auswärts essen':'Frei'}</b></span><button class="mini" data-a="outday" data-v="${i}">${out.has(i)?'Zuhause':'Auswärts'}</button></div>`}).join('');
-return `<h1>Eure Woche</h1><p class="sub">${ds.length} Gerichte · je ${S.portions} Portionen · ${S.store}${S.planStart?` · seit ${fmtD(S.planStart)}`:''}</p>
+return `<h1>Eure Woche</h1><p class="sub">${gerichte(ds.length)} · je ${S.portions} Portionen · ${S.store}${S.planStart?` · seit ${fmtD(S.planStart)}`:''}</p>
 <section class="card glass v"><div class="kpis" style="margin-top:0"><div class="kpi"><small>Einkauf</small><b>≈ ${eur(total)}</b></div><div class="kpi"><small>Pro Portion</small><b>${eur(total/ports)}</b></div><div class="kpi"><small>Ø Protein</small><b>${avg('p')} g</b></div><div class="kpi"><small>Ø Kochzeit</small><b>${avg('t')} Min</b></div></div></section>
 <section class="card glass week">${rows}</section>
 ${nutrCard(ds)}
