@@ -263,5 +263,8 @@ pruneHist();
 if(sharedIn)importPlan(sharedIn.si,sharedIn.po,sharedIn.ids);
 render();
 if(sharedIn)toast('Geteilter Plan übernommen');
-if('serviceWorker' in navigator&&location.protocol==='https:'){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
+if('serviceWorker' in navigator&&location.protocol==='https:'){try{
+ const hadCtrl=!!navigator.serviceWorker.controller;let reloaded=false;
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadCtrl&&!reloaded){reloaded=true;save();location.reload()}});
+ navigator.serviceWorker.register('sw.js').then(reg=>{document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{})})}).catch(()=>{})}catch(e){}}
 }
