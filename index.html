@@ -160,6 +160,39 @@ details.cmpbox summary::-webkit-details-marker{display:none}details.cmpbox summa
 h2.sec{font-size:22px;letter-spacing:-.02em;margin:26px 4px 12px}
 details.hist summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-height:44px;justify-content:center}
 details.hist summary::-webkit-details-marker{display:none}details.hist[open] summary{margin-bottom:6px}
+
+.itrow{display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:center;border-top:1px solid var(--line)}.itrow:first-of-type{border-top:0}.itrow .it{border-top:0}
+.rm{width:44px;height:44px;border-radius:50%;font-size:20px;color:var(--mut)}
+.ingrow{display:grid;grid-template-columns:minmax(0,1fr) 92px 44px;gap:8px;align-items:center;margin-bottom:8px}.ingrow .search{margin:0}
+.search.num{width:96px;margin:0;text-align:right}.search.area{min-height:130px;padding:12px 14px;line-height:1.45;resize:vertical;font-family:inherit}
+label.kpi{display:block}label.kpi .search{width:100%;text-align:left;margin-top:4px}
+.lo{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:48px;border-top:1px solid var(--line);font-size:15px}.lo:first-child{border-top:0}
+.lo input{width:22px;height:22px;accent-color:var(--acc)}
+#lolist{max-height:46vh;overflow:auto;margin-bottom:14px}
+.daypick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.daypick .btn{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-height:58px;padding:8px 14px;text-align:left}
+.daypick small{font-size:12px;color:var(--mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.daypick .cur{outline:2px solid var(--ink)}
+.week .day{grid-template-columns:34px 52px minmax(0,1fr) auto}.week .thumb{width:52px;height:52px;border-radius:14px;overflow:hidden;padding:0}
+.empty-th{background:var(--line)}.dname{display:flex;flex-direction:column;text-align:left;min-height:44px;justify-content:center}.dname b{line-height:1.25}
+.mini{min-height:36px;padding:0 12px;border-radius:999px;background:var(--gl2);border:1px solid var(--line);font-size:13px;font-weight:600}
+.cook{position:fixed;inset:0;z-index:50;overflow:auto;background:var(--bg);padding:calc(env(safe-area-inset-top) + 10px) 18px calc(env(safe-area-inset-bottom) + 20px);display:flex;flex-direction:column}
+.cook[hidden]{display:none}
+.cook::before{content:"";position:fixed;inset:0;z-index:-1;background:radial-gradient(40% 30% at 20% 10%,rgba(255,91,53,.18),transparent 70%),radial-gradient(40% 30% at 85% 90%,rgba(63,181,122,.14),transparent 70%)}
+.ck-top{display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:720px;width:100%;margin:0 auto}
+.ck-title{text-align:center;display:flex;flex-direction:column}.ck-title b{font-size:16px;line-height:1.25}.ck-title small{color:var(--mut);font-size:13px}
+.ck-prog{height:4px;border-radius:4px;background:var(--line);margin:12px auto;max-width:720px;width:100%;overflow:hidden}.ck-prog i{display:block;height:100%;background:var(--acc);transition:width .3s}
+.ck-body{flex:1;max-width:720px;width:100%;margin:0 auto}
+.ck-ill{border-radius:24px;overflow:hidden;margin:6px 0 18px;box-shadow:var(--sh)}.ck-ill svg{display:block;width:100%;height:auto}
+.ck-step{font-size:clamp(21px,5.6vw,28px);line-height:1.35;font-weight:500;letter-spacing:-.01em;margin:0 0 18px}.ck-step b{color:var(--acc);margin-right:10px}
+.ck-h{font-size:28px;letter-spacing:-.02em;margin:10px 0 6px}.ck-sub{color:var(--mut);margin:0 0 14px}
+.ck-nav{display:flex;gap:10px;max-width:720px;width:100%;margin:16px auto 0;position:sticky;bottom:0}
+.ck-done{text-align:center}.ck-done .nav{margin-top:8px}
+.timers{display:flex;gap:8px;flex-wrap:wrap;max-width:720px;margin:0 auto 6px;width:100%}
+.tmr{flex:1;min-width:140px;min-height:56px;border-radius:18px;background:var(--gl);border:1px solid var(--bd);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:6px 14px;text-align:left}
+.tmr b{font-size:22px;font-variant-numeric:tabular-nums}.tmr small{font-size:12px;color:var(--mut)}
+.tmr.ring{background:var(--acc);color:#fff;animation:pulse 1s infinite}.tmr.ring small{color:#fff}
+@keyframes pulse{50%{transform:scale(1.03)}}
+.tpill{position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:50%;transform:translateX(-50%);z-index:45;min-height:40px;padding:0 16px;border-radius:999px;font-size:14px;display:flex;gap:8px;align-items:center}
+.tpill[hidden]{display:none}.tpill b{font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -170,6 +203,8 @@ details.hist summary::-webkit-details-marker{display:none}details.hist[open] sum
 </div>
 <nav class="tabbar glass" id="tabs" aria-label="Bereiche"></nav>
 <div class="sheet" id="sheet" hidden></div>
+<div class="cook" id="cook" hidden role="dialog" aria-modal="true" aria-label="Kochmodus"></div>
+<button class="tpill glass" id="tpill" data-a="tpill" hidden></button>
 <div class="toast glass" id="toast" role="status"></div>
 <script src="data.js"></script>
 <script src="app.js"></script>

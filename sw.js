@@ -1,7 +1,7 @@
 // Offline-Cache für Mise.
 // Strategie: erst Netz (damit Updates sofort ankommen), ohne Netz der gespeicherte Stand.
 // Bei jeder neuen Version VERSION hochzählen.
-const VERSION = 'mise-v3';
+const VERSION = 'mise-v4';
 const FILES = ['./', 'index.html', 'app.js', 'data.js', 'manifest.webmanifest',
   'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
